@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name sensors)(type Legacy)(uri F:/Documents/KiCAD/WeatherStation/WeatherStationSender/libs/sensors/sensors.lib)(options "")(descr ""))
+)

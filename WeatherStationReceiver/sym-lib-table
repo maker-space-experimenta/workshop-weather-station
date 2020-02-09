@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name oled)(type Legacy)(uri F:/Documents/KiCAD/WeatherStation/WeatherStation/_libs/KiCad-SSD1306_OLED-0.91-128x32/SSD1306_OLED-0.91-128x32.lib)(options "")(descr ""))
+)
