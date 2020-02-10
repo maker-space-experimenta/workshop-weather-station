@@ -12,6 +12,10 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
+#include <SPI.h>
+#include <nRF24L01.h>
+#include <RF24.h>
+
 #include <images.h>
 
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -21,20 +25,51 @@
 #define OLED_RESET -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-int temperature = -15;
+String temperature = "-15,00";
+String humidity = "00,00";
 int cursorRow = 30;
-unsigned long last = 0;
+unsigned long lastReceived = 0;
+
+RF24 radio(9, 10); // CE, CSN
+const byte address[6] = "00001";
+boolean button_state = 0;
+int led_pin = 3;
+
+void showSplashscreen(void)
+{
+  display.clearDisplay();
+  display.drawBitmap(0, 0, logoMakerSpace, 128, 64, WHITE);
+  display.display();
+  delay(2000);
+
+  // display.clearDisplay();
+  // display.drawBitmap(0, 0, logoExperimenta, 128, 64, WHITE);
+  // display.display();
+  // delay(2000);
+
+  display.clearDisplay();
+  display.drawBitmap(0, 0, logoExperimentaClaim, 128, 64, WHITE);
+  display.display();
+  delay(2000);
+
+  // Clear the buffer
+  display.clearDisplay();
+  display.display();
+  delay(500);
+}
 
 void renderTemperature(void)
 {
   display.clearDisplay();
+  display.setTextColor(WHITE);
 
   display.setTextSize(1);
-  display.setCursor(20, 0);
-  display.print("Temperatur");
+  display.setCursor(10, 0);
+  display.print("Luftfeuchte:");
+  display.print(humidity);
+  display.print("%");
 
-  display.setTextSize(4);
-  display.setTextColor(WHITE);
+  display.setTextSize(3);
 
   if (temperature < -9)
   {
@@ -55,9 +90,33 @@ void renderTemperature(void)
 
   display.print(temperature);
 
-  display.print((char)176);
+  display.setCursor(100, cursorRow - 10);
+  display.setTextSize(2);
+  display.print((char)247);
   display.print(F("C"));
-  display.display(); // Show initial text
+}
+
+void renderFace(void)
+{
+  display.clearDisplay();
+  display.drawBitmap(0, 0, faceEyeOpen, 128, 64, WHITE);
+  display.display();
+  delay(2000);
+
+  display.clearDisplay();
+  display.drawBitmap(0, 0, faceEyeClosed, 128, 64, WHITE);
+  delay(100);
+}
+
+void renderMissingLink(void)
+{
+  display.clearDisplay();
+  display.drawBitmap(0, 0, iconMissingLink, 128, 64, WHITE);
+
+  display.setCursor(65, 20);
+  display.print("Verbindung");
+  display.setCursor(65, 30);
+  display.print("verloren");
 }
 
 void setup()
@@ -72,48 +131,64 @@ void setup()
       ; // Don't proceed, loop forever
   }
 
+  showSplashscreen();
 
   display.clearDisplay();
-  display.drawBitmap(0, 0, logoMakerSpace, 128, 64, WHITE);
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.setCursor(10, 10);
+  display.println("Starting radio ...");
   display.display();
-  delay(2000);
-  
-  display.clearDisplay();
-  display.drawBitmap(0, 0, logoExperimenta, 128, 64, WHITE);
+  delay(200);
+  display.setCursor(10, 30);
+  display.println("waiting for first");
+  display.setCursor(13, 40);
+  display.println("transmittion ...");
   display.display();
-  delay(2000);
-  
-  display.clearDisplay();
-  display.drawBitmap(0, 0, logoExperimentaClaim, 128, 64, WHITE);
-  display.display();
-  delay(2000);
 
-  // Clear the buffer
-  display.clearDisplay();
-  display.display();
-  delay(2000);
+  radio.begin();
+  radio.openReadingPipe(0, address);
+  radio.setPALevel(RF24_PA_MIN);
+  radio.startListening();
+
+  delay(1000);
 }
 
 void loop()
 {
 
-  Serial.println(millis());
-
-  if (last < millis() - 1000)
+  if (radio.available()) //Looking for the data.
   {
-    last = millis();
-    temperature++;
-    // renderTemperature();
+    lastReceived = millis();
 
-    display.clearDisplay();
+    char text[32] = "";
+    radio.read(&text, sizeof(text));
+    Serial.println(text);
+
+    String s = String(text);
+    humidity = s.substring(0, 5);
+    temperature = s.substring(6);
+  }
+
+  Serial.println(millis() - lastReceived);
+
+  if (millis() - lastReceived > 20000)
+  {
+    renderMissingLink();
+  }
+  else
+  {
+
+    renderTemperature();
 
     display.setTextSize(1);
-    display.setCursor(20, 0);
-
-    for (int i = 0; i < 256; i++)
-    {
-      display.print((char)i);
-      display.display();
-    }
+    display.setCursor(10, 53);
+    display.print("Update vor ");
+    int sec = (millis() - lastReceived) / 1000;
+    display.print(sec);
+    display.print(" Sek");
   }
+
+  display.display();
+  delay(5);
 }
